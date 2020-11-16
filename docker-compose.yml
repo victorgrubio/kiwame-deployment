@@ -1,0 +1,144 @@
+version: '3'
+networks:
+  kiwame_public:
+    driver: overlay
+    external: true
+  kiwame_private:
+    driver: overlay
+    external: true
+services:
+  mongo:
+    image: mongo:4.2.10
+    networks:
+      - kiwame_private
+    volumes:
+      - db:/data/db
+    deploy:
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+  api:
+    image: gatvdocker/kiwame:api-1.1.2
+    environment:
+      - WAIT_HOSTS=mongo:27017, kafka:9092
+      - WAIT_AFTER_HOSTS=5
+      - CONFIG_ENV=docker_prod
+    volumes:
+      - images_api:/usr/src/images
+    ports:
+      - "80:8090"
+    networks:
+      - kiwame_private
+    deploy:
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+  dashboard:
+    image: gatvdocker/kiwame:dashboard-1.0.0
+    build:
+        context: dashboard
+        dockerfile: Dockerfile
+    #environment:
+     # - API_ENV=production
+     # - API_URL=http://80.58.61.69
+    ports:
+      - "8080:80"
+    networks:
+      - app-tier
+    depends_on:
+      - api
+  cvm:
+    image: tavitto16/kiwame_cvm_tid:latest
+    environment:
+      - KAFKA_SERVER=kafka
+      - KAFKA_PORT=9092
+      - KAFKA_TOPIC_CONSUMER=newFoodPicture
+      - KAFKA_TOPIC_PRODUCER=ingredients
+      - KAFKA_GROUP=group1
+      - BROKER_HOST=http://kiwame_api
+      - BROKER_PORT=8090
+    networks:
+      - kiwame_private
+    depends_on:
+      - api
+    deploy:
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+  dam:
+    image: gatvdocker/kiwame:dam-1.0.1
+    environment:
+      - API_KEY_NAME=DAM
+      - BASE_URL=kiwame_api:8090
+      - KAFKA_HOST=kafka
+      - KAFKA_PORT=9092
+      - KAFKA_TOPIC_CONSUMER=newMeasure
+      - KAFKA_TOPIC_PRODUCER=recommendations
+      - KAFKA_GROUP_ID=dam
+    networks:
+      - kiwame_private
+    depends_on:
+      - api
+    deploy:
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+  zookeeper:
+    image: bitnami/zookeeper:3.6.1
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=yes
+    tmpfs: "/datalog"
+    networks:
+      - kiwame_private
+    deploy:
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+  kafka:
+    image: bitnami/kafka:2.4.0
+    environment:
+      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
+      - ALLOW_PLAINTEXT_LISTENER=yes
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,PLAINTEXT_HOST://:29092
+    networks:
+      - kiwame_private
+    depends_on:
+      - zookeeper
+    deploy:
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+  kafdrop:
+    image: obsidiandynamics/kafdrop:3.26.0
+    environment:
+      KAFKA_BROKERCONNECT: "kafka:9092"
+      JVM_OPTS: "-Xms16M -Xmx48M -Xss180K -XX:-TieredCompilation -XX:+UseStringDeduplication -noverify"
+    networks:
+      - kiwame_private
+    ports:
+      - "9001:9000"
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 64M
+      restart_policy:
+        condition: any
+volumes:
+  images_api:
+  db:

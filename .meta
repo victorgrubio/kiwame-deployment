@@ -1,0 +1,7 @@
+{
+  "projects": {
+    "apis": "git@gitlab.com:GATVUPM/kiwame.git",
+    "dashboard": "git@gitlab.com:GATV/kiwame-dashboard.git",
+    "data-analysis-module": "git@gitlab.com:GATV/kiwame-data-analysis-module.git"
+  }
+}
